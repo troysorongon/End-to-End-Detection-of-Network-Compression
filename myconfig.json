@@ -1,0 +1,2 @@
+{"servIP": "127.0.0.1", "sourcePortUDP": 9876, "destPortUDP": 8765, "destPortTCPHead": 0, "destPortTCPTail": 0,
+"TCPPort": 0, "UDPPayload": 0, "measureTime": 0, "numUDPPack":100, "ttlUdp": 0}
