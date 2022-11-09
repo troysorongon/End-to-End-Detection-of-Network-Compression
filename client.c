@@ -12,22 +12,6 @@
 #define PORT 8221
 #define IPADDR "127.0.0.1"
 #define SIZE 1024
-#define TEST 1
-
-
-/*
-void send_file(FILE *fp, int sockfd){
-	char data[SIZE] = {0};
-
-	while(fgets(data, SIZE, fp) != NULL){
-		if(send(sockfd, data, sizeof(data), 0) == -1){
-			perror("Error in sending file\n");
-			exit(1);
-		}
-	}
-}
-*/
-
 
 
 void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
@@ -53,7 +37,7 @@ void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
 	printf("[+]Connected to Server\n");
 
     /* Sending the contents of the JSON file to the server */
-    if(sendto(sock_desc, (const char *) fileContents, strlen(fileContents), '\0', (struct sockaddr *)
+    if(sendto(sock_desc, fileContents, strlen(fileContents), '\0', (struct sockaddr *)
      &server_addr, sizeof(server_addr)) < 0){
      	perror("File not sent\n");
      	exit(EXIT_FAILURE);
@@ -70,28 +54,29 @@ void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
 void udpConnection(char *serverIP, int sourcePort, int destinationPort, int udpPayload,
 int interMeasureTime, int numPackets) {
 
-	int sock_desc = socket(AF_INET, SOCK_DGRAM, 0); // may need to change to "IP_PROTOUDP"
+	int sock_desc = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); // may need to change to "IP_PROTOUDP"
 	if(sock_desc < 0){
 		printf("Unable to create socket\n");
 		exit(EXIT_FAILURE);
 	}
 
-	// Sets the IP header to DF
+	/* Sets the IP header to DF
 	int val = 1;
 	int sockopt = setsockopt(sock_desc, IPPROTO_IP, IPV6_DONTFRAG, &val, sizeof(val));
 	if(sockopt < 0){
 		printf("Error setsockopt\n");
 		exit(EXIT_FAILURE);
 	}
+	*/
 
-	/* For Linux if error occurs:
-		int val = IP_PMTUDISC_DO;
+	// For Linux if error occurs:
+	int val = IP_PMTUDISC_DO;
 	int sockopt = setsockopt(sock_desc, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val));
 	if(sockopt < 0){
 		printf("Error setsockopt\n");
 		exit(EXIT_FAILURE);
 	}
-	*/
+	
 	
 
 	// setting source and destination port and IP for client and server
@@ -130,7 +115,7 @@ int interMeasureTime, int numPackets) {
 		// send
 		if (id == 0){
 			memset(lowEntropy, id, sizeof(id)); // sets the beginning of the payload (first 16 bits/2 bytes) to the packet ID
-			if(sendto(sock_desc, (char *)lowEntropy, sizeof(lowEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+			if(sendto(sock_desc, lowEntropy, sizeof(lowEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
 				perror("First UDP packet send error\n");
 				exit(EXIT_FAILURE);
 			}
@@ -141,7 +126,7 @@ int interMeasureTime, int numPackets) {
 		}
 		if (id == (numPackets - 1)){
 			memset(lowEntropy, id, sizeof(id));
-			if(sendto(sock_desc, (char *)lowEntropy, sizeof(lowEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+			if(sendto(sock_desc, lowEntropy, sizeof(lowEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
 				perror("Last UDP packet send error\n");
 				exit(EXIT_FAILURE);
 			}
@@ -152,7 +137,7 @@ int interMeasureTime, int numPackets) {
 		}
 
 		memset(lowEntropy, id, sizeof(id));
-		if(sendto(sock_desc, (char *)lowEntropy, sizeof(lowEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+		if(sendto(sock_desc, lowEntropy, sizeof(lowEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
 			perror("UDP packet send error\n");
 			exit(EXIT_FAILURE);
 		}
@@ -175,7 +160,7 @@ int interMeasureTime, int numPackets) {
 			// send
 			if (id == 0){
 				memset(highEntropy, id, sizeof(id)); // sets the beginning of the payload (first 16 bits/2 bytes) to the packet ID
-				if(sendto(sock_desc, (char *)highEntropy, sizeof(highEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+				if(sendto(sock_desc, highEntropy, sizeof(highEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
 					perror("First UDP packet send error\n");
 					exit(EXIT_FAILURE);
 				}
@@ -186,7 +171,7 @@ int interMeasureTime, int numPackets) {
 			}
 			if (id == (numPackets - 1)){
 				memset(highEntropy, id, sizeof(id));
-				if(sendto(sock_desc, (char *)highEntropy, sizeof(highEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+				if(sendto(sock_desc, highEntropy, sizeof(highEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
 					perror("Last UDP packet send error\n");
 					exit(EXIT_FAILURE);
 				}
@@ -197,12 +182,15 @@ int interMeasureTime, int numPackets) {
 			}
 	
 			memset(highEntropy, id, sizeof(id));
-			if(sendto(sock_desc, (char *)highEntropy, sizeof(highEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+			if(sendto(sock_desc, highEntropy, sizeof(highEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
 				perror("UDP packet send error\n");
 				exit(EXIT_FAILURE);
 		}
 	
 	}
+
+	close(sock_desc);
+	printf("[+]Successfully sent both packet trains\n");
 }
 
 int main(int argc, char* argv[]){
@@ -254,6 +242,8 @@ int main(int argc, char* argv[]){
 		exit(EXIT_FAILURE);
     }
 
+    //printf("buffer: %s\n", buffer);
+
 
 	/* Setting defaults to values if not present or "0" in JSON file */
     if(UDPPayload <= 0 || UDPPayload > 65527){
@@ -261,7 +251,7 @@ int main(int argc, char* argv[]){
     }
 
     if(measureTime <= 0){
-    	measureTime = 15;
+    	measureTime = 5;
     }
 
     if(numUDPPack <= 0){
@@ -273,13 +263,19 @@ int main(int argc, char* argv[]){
     }
     
 	/*testing*/
-    printf("servIP = %s\nsourcePortUDP = %d\nnumUDPPack = %d\n", servIP, sourcePortUDP, numUDPPack);
-	printf("ttl = %d\n", ttlUdp);
+    //printf("servIP = %s\nsourcePortUDP = %d\nnumUDPPack = %d\n", servIP, sourcePortUDP, numUDPPack);
+	//printf("ttl = %d\n", ttlUdp);
 	
  	/* Creates TCP connection with server that takes in the server IP address 
  	and TCP Port number. Sends the contexts in the config file to the server.*/
+	printf("Pre-probing Phase:\n");
 	tcpConnection(servIP, TCPPort, buffer);
+	printf("\n");
+
+	printf("Probing Phase:\n");
+	udpConnection(servIP, sourcePortUDP, destPortUDP, UDPPayload, measureTime, numUDPPack);
 
 	
 	return 0;
 }
+
