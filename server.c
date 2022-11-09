@@ -14,6 +14,7 @@
 #define PORT 8221
 #define IPADDR "127.0.0.1"
 #define SIZE 1024
+#define TEST 1
 
 /* GLOBAL VARIABLES TO STORE CONFIG CONTENTS */
 char servIP[40];
