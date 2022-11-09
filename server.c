@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <time.h>
+#include <stdbool.h>
 
 #include "mjson.h"
 
@@ -43,12 +44,12 @@ void parser(char* buffer){
 		perror("Error getting from JSON file.\n");
 		exit(EXIT_FAILURE);
     }
-	
 
+    printf("[+]Successfully parsed message from client\n");
 }
 
 /* 1) CREATING TCP CONNECTION WITH CLIENT TO RECIEVE CONFIG FILE CONTENTS */
-void tcpConnection(int tcpPort){
+void tcpConnection(char* servIP, int tcpPort){
 
 	/* Creates the socket */
 	int socket_desc = socket(AF_INET, SOCK_STREAM, 0);
@@ -63,7 +64,7 @@ void tcpConnection(int tcpPort){
 	memset(&server_addr, 0, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(tcpPort);
-	server_addr.sin_addr.s_addr = inet_addr(IPADDR);
+	server_addr.sin_addr.s_addr = inet_addr(servIP);
 	
 	if(bind(socket_desc, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
 		perror("Server could not bind to port\n");
@@ -82,22 +83,23 @@ void tcpConnection(int tcpPort){
 	int client_size = sizeof(client_addr);
 	int client_sock;
 	
-	if(accept(socket_desc, (struct sockaddr*)&client_addr, &client_size) < 0){
+	client_sock = accept(socket_desc, (struct sockaddr*)&client_addr, &client_size);
+	if(client_sock < 0){
 		perror("Could not connect with client\n");
 		exit(EXIT_FAILURE);
 	}
 	printf("[+]Client connected. IP: %s \t port: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+	printf("\n");
 	
 	char buffer[SIZE];
 	
-	socklen_t len = 0;
-	if(recvfrom(client_sock, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &client_size) < 0){
+	//socklen_t len = 0;
+	if(recv(client_sock, buffer, sizeof(buffer), 0) < 0){ //(struct sockaddr *) &client_addr, &client_size) < 0){
 		perror("Error recieving content from client\n");
-		exit(EXIT_FAILURE;
+		exit(EXIT_FAILURE);
 	}
 	    
-	printf("%s test", buffer);
-	printf("\n");
+	printf("info recieved: %s\n", buffer);
 	
 	parser(buffer);
 	
@@ -109,30 +111,13 @@ void tcpConnection(int tcpPort){
 
 double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 
-	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if(sockfd < 0){
 		printf("Error creating socket\n");
 		exit(EXIT_FAILURE);
 	}
 	printf("[+]Socket created successfully\n");
-
-	// Sets the IP header to DF
-	int val = 1;
-	int sockopt = setsockopt(sockfd, IPPROTO_IP, IPV6_DONTFRAG, &val, sizeof(val));
-	if(sockopt < 0){
-		printf("Error setsockopt\n");
-		exit(EXIT_FAILURE);
-	}
-
-	/* For Linux if error occurs:
-		int val = IP_PMTUDISC_DO;
-	int sockopt = setsockopt(sock_desc, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val));
-	if(sockopt < 0){
-		printf("Error setsockopt\n");
-		exit(EXIT_FAILURE);
-	}
-	*/
-	
+		
 	struct sockaddr_in server_addr, client_addr;
 	memset(&server_addr, 0, sizeof(server_addr));
 	memset(&server_addr, 0, sizeof(client_addr));
@@ -159,7 +144,7 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 	while(n < numPackets){
 		start_t = clock();
 		if(n == 0){
-			if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
+			if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
 				perror("Error recieving first LOW ENTROPY UDP packet: recvfrom()\n");
 				exit(EXIT_FAILURE);
 			}else{
@@ -169,7 +154,7 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 			}
 		}
 		if(n == (numPackets-1)){
-			if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
+			if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
 				perror("Error recieving last LOW ENTROPY UDP packet: recvfrom()\n");
 				exit(EXIT_FAILURE);
 				
@@ -181,14 +166,14 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 			}
 		}
 
-		if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
+		if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
 			perror("Error recieving UDP packet: recvfrom()\n");
 			exit(EXIT_FAILURE);
 		}else{
 			n++;
 		}	
 	}
-
+	
 	records[0] = lowEntropyTrain;
 	n = 0; // resets the iteration counter to 0 for the next packet train
 
@@ -196,7 +181,7 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 	while(n < numPackets){
 		start_t = clock();
 		if(n == 0){
-				if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
+				if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
 					perror("Error recieving first HIGH ENTROPY UDP packet: recvfrom()\n");
 					exit(EXIT_FAILURE);
 				}else{
@@ -206,7 +191,7 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 				}
 			}
 			if(n == (numPackets-1)){
-				if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
+				if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
 					perror("Error recieving last HIGH ENTROPY UDP packet: recvfrom()\n");
 					exit(EXIT_FAILURE);
 					
@@ -218,16 +203,16 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 				}
 			}
 	
-			if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
+			if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
 				perror("Error recieving UDP packet: recvfrom()\n");
 				exit(EXIT_FAILURE);
 			}else{
 				n++;
 			}	
 		}
-
-
+	
 	records[1] = highEntropyTrain;
+	close(sockfd);
 
 	return records;
 	
@@ -239,6 +224,93 @@ calculates to see if compression is detected, then sends its findings to the cli
 */
 
 
+void postProbing(int tcpPort, double *times){
+
+	/* Calculating Compression Detection */
+	bool lowCompressed = true;
+	bool highCompressed = true;
+	double lowEntropyTime = *times + 0;
+	double highEntropyTime = *times + 1;
+
+	printf("lowEntropyTime: %f\n highEntropyTime: %f\n", lowEntropyTime, highEntropyTime);
+
+	/* Checks the time to see if they are under the threshold of 100 ms */
+	if(lowEntropyTime < 100){
+		lowCompressed = false;
+	}
+
+	if(highEntropyTime < 100){
+		highCompressed = false;
+	}	
+
+	/* Writes the message of compression detection of both packet trains to send to client */
+	char compressionMessage[SIZE];
+	if(lowCompressed){
+		strcpy(compressionMessage, "Low Entropy Train: Compression detected!\n");
+	}
+	else{
+		strcpy(compressionMessage, "Low Entropy Train: No compression was detected!\n");
+	}
+
+	if(highCompressed){
+		strcpy(compressionMessage, "High Entropy Train: Compression detected!");
+	}
+	else{
+		strcpy(compressionMessage, "High Entropy Train: No compression was detected!");
+	}
+	
+	
+	int socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+	if(socket_desc < 0){
+		perror("Error creating socket\n");
+		exit(EXIT_FAILURE);
+	}
+	printf("[+]Socket created successfully\n");
+	
+	/* Creates the server address struct */
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(tcpPort);
+	server_addr.sin_addr.s_addr = inet_addr(IPADDR);
+		
+	if(bind(socket_desc, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
+		perror("Server could not bind to port\n");
+		exit(EXIT_FAILURE);
+	}
+		
+	printf("[+]Server successfully binded to port\n");
+		
+	if(listen(socket_desc, 1) < 0){
+		printf("Error while listening for client\n");
+		exit(EXIT_FAILURE);
+	}
+	printf("[+]Listening for client\n");
+			
+	struct sockaddr_in client_addr;
+	int client_size = sizeof(client_addr);
+	int client_sock;
+		
+	client_sock = accept(socket_desc, (struct sockaddr*)&client_addr, &client_size);
+	if(client_sock < 0){
+		perror("Could not connect with client\n");
+		exit(EXIT_FAILURE);
+	}
+
+	printf("[+]Client connected. IP: %s \t port: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+	printf("\n");
+
+	if(send(client_sock, compressionMessage, strlen(compressionMessage), 0) < 0){
+		perror("Error sending compression message to client\n");
+		exit(EXIT_FAILURE);
+	}
+
+	printf("[+]Closing connection with Client\n");
+	close(client_sock);
+	close(socket_desc);
+	
+}
+
 
 int main(int argc, char* argv[]){
 
@@ -248,9 +320,19 @@ int main(int argc, char* argv[]){
 	}
 
 	/* PARSING JSON FILE to get SOURCE PORT */
-    int TCPPort;
+   // int TCPPort;
     const struct json_attr_t json_attrs[] = {      
-        {"TCPPort", t_integer, .addr.integer = &TCPPort},   
+		{"servIP", t_string, .addr.string = servIP,
+			.len = sizeof(servIP)},
+		{"sourcePortUDP", t_integer, .addr.integer = &sourcePortUDP},
+		{"destPortUDP", t_integer, .addr.integer = &destPortUDP},
+		{"destPortTCPHead", t_integer, .addr.integer = &destPortTCPHead},
+		{"destPortTCPTail", t_integer, .addr.integer = &destPortTCPTail},
+		{"TCPPort", t_integer, .addr.integer = &tcpPort},
+		{"UDPPayload", t_integer, .addr.integer = &UDPPayload},
+		{"measureTime", t_integer, .addr.integer = &measureTime},
+		{"numUDPPack", t_integer, .addr.integer = &numUDPPack},
+		{"ttlUdp", t_integer, .addr.integer = &ttlUdp}, 
         {NULL},
     };
 
@@ -272,10 +354,20 @@ int main(int argc, char* argv[]){
 		perror("Error getting from JSON file.\n");
 		exit(EXIT_FAILURE);
 	}
+
+
+	printf("Pre-probing Phase:\n");
+	printf("TCPport: %d\n", tcpPort);
+	tcpConnection(servIP, tcpPort);
+	printf("\n");
+
+	printf("Probing Phase:\n");
+	double* times; 
+	times = udpConnection(servIP, destPortUDP, numUDPPack, UDPPayload);
+	printf("\n");
 	
-
-	tcpConnection(TCPPort);
-
+	printf("Post-probing Phase:\n");
+	postProbing(tcpPort, times);
 
 	return 0;
 }
