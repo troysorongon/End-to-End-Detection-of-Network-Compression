@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <time.h>
+
 #include "mjson.h"
 
 #define PORT 8221
@@ -17,8 +18,33 @@
 /* GLOBAL VARIABLES TO STORE CONFIG CONTENTS */
 char servIP[40];
 int sourcePortUDP, destPortUDP, destPortTCPHead, destPortTCPTail,
-    UDPPayload, measureTime, numUDPPack, ttlUdp;
+    tcpPort, UDPPayload, measureTime, numUDPPack, ttlUdp;
 
+
+/* Helper function that parses the contents in the buffer */
+void parser(char* buffer){
+	const struct json_attr_t json_attrs[] = {
+        {"servIP", t_string, .addr.string = servIP,
+			.len = sizeof(servIP)},
+        {"sourcePortUDP", t_integer, .addr.integer = &sourcePortUDP},
+        {"destPortUDP", t_integer, .addr.integer = &destPortUDP},
+        {"destPortTCPHead", t_integer, .addr.integer = &destPortTCPHead},
+        {"destPortTCPTail", t_integer, .addr.integer = &destPortTCPTail},
+        {"TCPPort", t_integer, .addr.integer = &tcpPort},
+        {"UDPPayload", t_integer, .addr.integer = &UDPPayload},
+        {"measureTime", t_integer, .addr.integer = &measureTime},
+        {"numUDPPack", t_integer, .addr.integer = &numUDPPack},
+        {"ttlUdp", t_integer, .addr.integer = &ttlUdp},
+        {NULL},
+    };
+	
+	if(json_read_object(buffer, json_attrs, NULL) < 0){
+		perror("Error getting from JSON file.\n");
+		exit(EXIT_FAILURE);
+    }
+	
+
+}
 
 /* 1) CREATING TCP CONNECTION WITH CLIENT TO RECIEVE CONFIG FILE CONTENTS */
 void tcpConnection(int tcpPort){
@@ -64,15 +90,19 @@ void tcpConnection(int tcpPort){
 	char buffer[SIZE];
 	
 	socklen_t len = 0;
-	int n = recvfrom(client_sock, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &client_size); 
+	if(recvfrom(client_sock, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &client_size) < 0){
+		perror("Error recieving content from client\n");
+		exit(EXIT_FAILURE;
+	}
 	    
-	printf("%s test", buf);
+	printf("%s test", buffer);
 	printf("\n");
 	
-	printf("[+]finished\n");
+	parser(buffer);
+	
+	printf("[+]Closing connection with Client\n");
 	close(client_sock);
 	close(socket_desc);
-		
 }
 
 
