@@ -369,16 +369,9 @@ int main(int argc, char* argv[]){
 	tcpConnection(servIP, tcpPort);
 	printf("\n");
 
-
-	printf("NumPackets: %d\n", numUDPPack);
-	printf("udpPayload: %d\n", UDPPayload);
 	printf("Probing Phase:\n");
 	udpConnection(servIP, destPortUDP, UDPPayload);
 	printf("\n");
-
-	printf("Low Entropy Packet Train Compression Time: %fms\n", *times+0);
-	printf("High Entropy Packet Train Compression Time: %fms\n", *times+1);
-
 	
 	printf("Post-probing Phase:\n");
 	postProbing(tcpPort, times);
