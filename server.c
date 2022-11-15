@@ -21,7 +21,7 @@
 char servIP[40];
 int sourcePortUDP, destPortUDP, destPortTCPHead, destPortTCPTail,
     tcpPort, UDPPayload, measureTime, numUDPPack, ttlUdp;
-
+static double times[2];
 
 /* Helper function that parses the contents in the buffer */
 void parser(char* buffer){
@@ -45,6 +45,33 @@ void parser(char* buffer){
 		exit(EXIT_FAILURE);
     }
 
+    if(UDPPayload <= 0 || UDPPayload > 65527){
+    	UDPPayload = 1000;
+    }
+
+    if(measureTime <= 0){
+    	measureTime = 5;
+    }
+
+    if(numUDPPack <= 0){
+    	numUDPPack = 6000;
+    }
+
+    if(ttlUdp <= 0){
+    	ttlUdp = 255;
+    }
+
+    printf("\tServer IP: %s\n", servIP);
+    printf("\tUDP Source Port: %d\n", sourcePortUDP);
+    printf("\tUDP Destination Port: %d\n", destPortUDP);
+    printf("\tDestination Port TCP Head: %d\n", destPortTCPHead);
+    printf("\tDestination Port TCP Tail: %d\n", destPortTCPTail);
+    printf("\tTCP Port: %d\n", tcpPort);
+    printf("\tUDP Payload: %d\n", UDPPayload);
+    printf("\tInter-Measurement Time: %d\n", measureTime);
+    printf("\tUDP Packets: %d\n", numUDPPack);
+    printf("\tTime-to-Live: %d\n", ttlUdp);
+
     printf("[+]Successfully parsed message from client\n");
 }
 
@@ -58,6 +85,13 @@ void tcpConnection(char* servIP, int tcpPort){
 		exit(EXIT_FAILURE);
 	}
 	printf("[+]Socket created successfully\n");
+
+	int val = 1;
+	int setsock = setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR, (void*)&val, sizeof(val));
+	if(setsock < 0){
+		perror("setsockopt error\n");
+		exit(EXIT_FAILURE);
+	}
 
 	/* Creates the server address struct */
 	struct sockaddr_in server_addr;
@@ -91,15 +125,14 @@ void tcpConnection(char* servIP, int tcpPort){
 	printf("[+]Client connected. IP: %s \t port: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 	printf("\n");
 	
-	char buffer[SIZE];
+	char buffer[1024];
 	
-	//socklen_t len = 0;
 	if(recv(client_sock, buffer, sizeof(buffer), 0) < 0){ //(struct sockaddr *) &client_addr, &client_size) < 0){
 		perror("Error recieving content from client\n");
 		exit(EXIT_FAILURE);
 	}
 	    
-	printf("info recieved: %s\n", buffer);
+	printf("Info recieved: \n");
 	
 	parser(buffer);
 	
@@ -109,7 +142,7 @@ void tcpConnection(char* servIP, int tcpPort){
 }
 
 
-double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
+void udpConnection(char* serverIP, int port, int udpPayload){
 
 	int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if(sockfd < 0){
@@ -117,7 +150,7 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 		exit(EXIT_FAILURE);
 	}
 	printf("[+]Socket created successfully\n");
-		
+
 	struct sockaddr_in server_addr, client_addr;
 	memset(&server_addr, 0, sizeof(server_addr));
 	memset(&server_addr, 0, sizeof(client_addr));
@@ -132,89 +165,55 @@ double* udpConnection(char* serverIP, int port, int numPackets, int udpPayload){
 	printf("[+]Server successfully binded to port\n");
 
 	char buffer[udpPayload];
-	int n = 0; // iteration counter
+	int numRecieved = 0;
 	int len = sizeof(client_addr);
-	static double records[2]; // double array that stores the records of the times from the two packet trains
+	
 
 	/* intialized clock structs to record time */
-	clock_t start_t, end_t;
-	double lowEntropyTrain, highEntropyTrain; // stores the difference in times between first and last packet in train
+	clock_t start, end;
 
-	// Iterates to recieve all the packets from the first/low UDP packet train
-	while(n < numPackets){
-		start_t = clock();
-		if(n == 0){
-			if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
-				perror("Error recieving first LOW ENTROPY UDP packet: recvfrom()\n");
-				exit(EXIT_FAILURE);
-			}else{
-				printf("[+] Successfully Recieved FIRST LOW ENTROPY packet\n");
-				n++;
-				continue;
-			}
-		}
-		if(n == (numPackets-1)){
-			if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
-				perror("Error recieving last LOW ENTROPY UDP packet: recvfrom()\n");
-				exit(EXIT_FAILURE);
-				
-			}else{
-				end_t = clock();
-				lowEntropyTrain = (double)((end_t - start_t) * 1000 / CLOCKS_PER_SEC); // gets milliseconds
-				printf("[+] Successfully Recieved LAST LOW ENTROPY packet\n");
-				break;
-			}
-		}
-
-		if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
-			perror("Error recieving UDP packet: recvfrom()\n");
-			exit(EXIT_FAILURE);
-		}else{
-			n++;
-		}	
-	}
-	
-	records[0] = lowEntropyTrain;
-	n = 0; // resets the iteration counter to 0 for the next packet train
-
-	// Iterates to recieve all udp packets from second/high UDP packet train
-	while(n < numPackets){
-		start_t = clock();
-		if(n == 0){
-				if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
-					perror("Error recieving first HIGH ENTROPY UDP packet: recvfrom()\n");
-					exit(EXIT_FAILURE);
-				}else{
-					printf("[+] Successfully Recieved FIRST HIGH ENTROPY packet\n");
-					n++;
-					continue;
-				}
-			}
-			if(n == (numPackets-1)){
-				if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
-					perror("Error recieving last HIGH ENTROPY UDP packet: recvfrom()\n");
-					exit(EXIT_FAILURE);
-					
-				}else{
-					end_t = clock();
-					highEntropyTrain = (double)((end_t - start_t) * 1000 / CLOCKS_PER_SEC); // gets milliseconds
-					printf("[+] Successfully Recieved LAST HIGH ENTROPY packet\n");
-					break;
-				}
-			}
-	
-			if(recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &len) < 0){
+	/*  Recieves all packets from the low and high entropy packet train. Breaks loop once last packet of high entropy 
+	packet train is recieved */
+	start = clock();
+	while(true){
+		if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
 				perror("Error recieving UDP packet: recvfrom()\n");
 				exit(EXIT_FAILURE);
-			}else{
-				n++;
-			}	
+		}
+
+		if(strstr(buffer, "done")){
+			end = clock();
+			break;
+		}
+		
+		numRecieved++;
+	}
+
+	times[0] = (double)((end - start) * 1000 / CLOCKS_PER_SEC);
+	printf("Low Entropy Train --> Number of packets Recieved: %d\n", numRecieved);
+
+	numRecieved = 0;
+
+	start = clock();
+	while(true){
+		if(recvfrom(sockfd, buffer, sizeof(buffer), MSG_WAITALL, (struct sockaddr *) &client_addr, &len) < 0){
+			perror("Error recieving UDP packet: recvfrom()\n");
+			exit(EXIT_FAILURE);
 		}
 	
-	records[1] = highEntropyTrain;
-	close(sockfd);
+		if(strstr(buffer, "done")){
+			end = clock();
+			break;
+		}
+			
+		
+		numRecieved++;
+	}
 
-	return records;
+	times[1] = (double)((end - start) * 1000 / CLOCKS_PER_SEC);
+	printf("High Entropy Train --> Number of packets Recieved: %d\n", numRecieved);			
+	
+	close(sockfd);
 	
 }
 
@@ -246,19 +245,18 @@ void postProbing(int tcpPort, double *times){
 	/* Writes the message of compression detection of both packet trains to send to client */
 	char compressionMessage[SIZE];
 	if(lowCompressed){
-		strcpy(compressionMessage, "Low Entropy Train: Compression detected!\n");
+		strcpy(compressionMessage, "\tLow Entropy Train: Compression detected!\n");
 	}
 	else{
-		strcpy(compressionMessage, "Low Entropy Train: No compression was detected!\n");
+		strcpy(compressionMessage, "\tLow Entropy Train: No compression was detected!\n");
 	}
 
 	if(highCompressed){
-		strcpy(compressionMessage, "High Entropy Train: Compression detected!");
+		strcat(compressionMessage, "\tHigh Entropy Train: Compression detected!\n");
 	}
 	else{
-		strcpy(compressionMessage, "High Entropy Train: No compression was detected!");
+		strcat(compressionMessage, "\tHigh Entropy Train: No compression was detected!\n");
 	}
-	
 	
 	int socket_desc = socket(AF_INET, SOCK_STREAM, 0);
 	if(socket_desc < 0){
@@ -266,6 +264,15 @@ void postProbing(int tcpPort, double *times){
 		exit(EXIT_FAILURE);
 	}
 	printf("[+]Socket created successfully\n");
+
+
+	int val = 1;
+	int setsock = setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR, (void*)&val, sizeof(val));
+	if(setsock < 0){
+		perror("setsockopt error\n");
+		exit(EXIT_FAILURE);
+	}
+
 	
 	/* Creates the server address struct */
 	struct sockaddr_in server_addr;
@@ -304,6 +311,7 @@ void postProbing(int tcpPort, double *times){
 		perror("Error sending compression message to client\n");
 		exit(EXIT_FAILURE);
 	}
+	printf("[+]Sent Compression findings to client\n");
 
 	printf("[+]Closing connection with Client\n");
 	close(client_sock);
@@ -361,13 +369,20 @@ int main(int argc, char* argv[]){
 	tcpConnection(servIP, tcpPort);
 	printf("\n");
 
+
+	printf("NumPackets: %d\n", numUDPPack);
+	printf("udpPayload: %d\n", UDPPayload);
 	printf("Probing Phase:\n");
-	double* times; 
-	times = udpConnection(servIP, destPortUDP, numUDPPack, UDPPayload);
+	udpConnection(servIP, destPortUDP, UDPPayload);
 	printf("\n");
+
+	printf("Low Entropy Packet Train Compression Time: %fms\n", *times+0);
+	printf("High Entropy Packet Train Compression Time: %fms\n", *times+1);
+
 	
 	printf("Post-probing Phase:\n");
 	postProbing(tcpPort, times);
-
+	
 	return 0;
 }
+
