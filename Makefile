@@ -1,14 +1,12 @@
-PROG = client server standalone
-all : $(PROGS)
+PROG = client
+OBJS = client.o mjson.o
+DEBUG = -g
 
-client: client.c mjson.h
-		gcc -g -o client client.c mjson.o
+$(PROG) : $(OBJS)
+		gcc $(DEBUG) -o $(PROG) $^
 
-server: server.c mjson.h
-		gcc -g -o server server.c mjson.o
-
-standalone: standalone.c mjson.h
-		gcc -g -o standalone standalone.c mjson.o
+%.o : %.c mjson.h
+		gcc $(DEBUG) -c -o $@ $<
 
 clean:
-	rm -rf $(PROG)
+	rm -rf $(PROG) $(OBJS)
