@@ -7,18 +7,13 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-
 #include "mjson.h"
 
-#define PORT 8221
-#define IPADDR "127.0.0.1"
-#define SIZE 1024
-
-
-void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
-
+void tcpConnection(char *serverIP, int tcpPort, char* fileContents)
+{
 	int sock_desc = socket(AF_INET, SOCK_STREAM, 0);
-	if(sock_desc < 0){
+	if(sock_desc < 0)
+	{
 		printf("Unable to create socket\n");
 		exit(EXIT_FAILURE);
 	}
@@ -27,11 +22,11 @@ void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
 
 	int val = 1;
 	int setsock = setsockopt(sock_desc, SOL_SOCKET, SO_REUSEADDR, (void*)&val, sizeof(val));
-	if(setsock < 0){
+	if(setsock < 0)
+	{
 		perror("setsockopt error\n");
 		exit(EXIT_FAILURE);
 	}
-
 
 	// setting port and IP
 	struct sockaddr_in server_addr;
@@ -39,7 +34,8 @@ void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
 	server_addr.sin_port = htons(tcpPort);
 	server_addr.sin_addr.s_addr = inet_addr(serverIP);
 
-	if(connect(sock_desc, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0){
+	if(connect(sock_desc, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0)
+	{
 		printf("Client unable to connect to server\n");
 		exit(1);
 	}
@@ -47,11 +43,13 @@ void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
 
     /* Sending the contents of the JSON file to the server */
     if(sendto(sock_desc, fileContents, strlen(fileContents), '\0', (struct sockaddr *)
-     &server_addr, sizeof(server_addr)) < 0){
+     &server_addr, sizeof(server_addr)) < 0)
+    {
      	perror("File not sent\n");
      	exit(EXIT_FAILURE);
-     }
-    else{
+    }
+    else
+    {
     	printf("[+]JSON content successfully sent\n"); 	
      }
 	
@@ -61,8 +59,8 @@ void tcpConnection(char *serverIP, int tcpPort, char* fileContents){
 
 
 void udpConnection(char *serverIP, int sourcePort, int destinationPort, int udpPayload,
-int numPackets, int interMeasureTime) {
-
+int numPackets, int interMeasureTime)
+{
 	int sock_desc = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); // may need to change to "IP_PROTOUDP"
 	if(sock_desc < 0){
 		printf("Unable to create socket\n");
@@ -71,21 +69,11 @@ int numPackets, int interMeasureTime) {
 
 	int val = IP_PMTUDISC_DO;
 	int sockopt = setsockopt(sock_desc, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val));
-	if(sockopt < 0){
+	if(sockopt < 0)
+	{
 		printf("Error setsockopt\n");
 		exit(EXIT_FAILURE);
-	}
-
-	/*
-	// For Linux if error occurs:
-	int val = 1;
-	int sockopt = setsockopt(sock_desc, IPPROTO_IP, IP_DONTFRAG, &val, sizeof(val));
-	if(sockopt < 0){
-		printf("Error setsockopt\n");
-		exit(EXIT_FAILURE);
-	}
-	*/
-	
+	}	
 
 	// setting source and destination port and IP for client and server
 	struct sockaddr_in client_addr, server_addr;
@@ -100,26 +88,42 @@ int numPackets, int interMeasureTime) {
 	server_addr.sin_port = htons(destinationPort);
 	server_addr.sin_addr.s_addr = inet_addr(serverIP);
 
-	/* LOW ENTROPY PACKET CREATION AND SEND */
-	unsigned char lowEntropy[udpPayload]; // Creating low entropy with the size of payload
+	/*------- LOW ENTROPY PACKET CREATION AND SEND -------- */
+	unsigned char lowEntropyData[udpPayload]; // Creating low entropy with the size of payload
+	memset(lowEntropyData, 0, udpPayload);
+	unsigned char lowEntropyPacket[udpPayload + 2]; // +2 to add space for the packet ID in the beginning of the packet
+
 	char* done = "done"; // char message to let the Server know it has sent the entire packet train
 
-	for(unsigned short int id = 0; id < numPackets; id++){
-		memset(lowEntropy, id, sizeof(id)); // sets the beginning of the payload (first 16 bits/2 bytes) to the packet ID
-		memset(lowEntropy+2, 0, sizeof(lowEntropy)); // sets the sequence of bytes to 0 after the packet ID
-		if(sendto(sock_desc, lowEntropy, sizeof(lowEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+	for(unsigned short int id = 0; id < numPackets; id++)
+	{
+		unsigned char idRight = id & 0xFF;	// Bit shift the last byte of the ID
+		unsigned char idLeft = id >> 8;		// Bit shift the first byte of the ID
+		
+		// Stores the left in right bytes in the first two indicies of the packet
+		lowEntropyPacket[0] = idLeft;	
+		lowEntropyPacket[1] = idRight;
+
+		strncpy(&lowEntropyPacket[2], lowEntropyData, udpPayload);	
+		if(sendto(sock_desc, lowEntropyPacket, sizeof(lowEntropyPacket), 0, (struct sockaddr *)&server_addr,
+		(socklen_t)sizeof(server_addr)) < 0)
+		{
 			perror("First UDP packet send error\n");
 			exit(EXIT_FAILURE);
 		}
-		if(id == 0){
+		if(id == 0)
+		{
 			printf("[+]Successfully sent the first packet\n");
 		}
-		if(id == (numPackets - 1)){
+		if(id == (numPackets - 1))
+		{
 			printf("[+]Successfully sent the last packet\n");
 		}
 	}
 
-	if(sendto(sock_desc, (const char*)done, strlen(done), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+	if(sendto(sock_desc, (const char*)done, strlen(done), 0, (struct sockaddr *)&server_addr,
+	(socklen_t)sizeof(server_addr)) < 0)
+	{
 		perror("First UDP packet send error\n");
 		exit(EXIT_FAILURE);
 	}
@@ -128,31 +132,45 @@ int numPackets, int interMeasureTime) {
 	// Will wait the Inter Measure Time before sending the High Entropy Packet Train
 	sleep(interMeasureTime);
 
-
-	/* HIGH ENTROPY PACKET CREATION AND SEND */
-    unsigned char highEntropy[udpPayload];
+	/* ------- HIGH ENTROPY PACKET CREATION AND SEND ------- */
+    unsigned char highEntropyData[udpPayload];
     FILE *fp;
    	fp = fopen("/dev/urandom", "r");
-    fread(&highEntropy, 1, udpPayload, fp); // reads from /dev/random and writes the random sequence of bytes to highEntropy
+    fread(&highEntropyData, 1, udpPayload, fp); // reads from /dev/random and writes the random sequence of bytes to highEntropy
     fclose(fp);
+
+    unsigned char highEntropyPacket[udpPayload + 2];
 	
-	for(unsigned short int id = 0; id < numPackets; id++){
-		memset(highEntropy, id, sizeof(id)); // sets the beginning of the payload (first 16 bits/2 bytes) to the packet ID
-		memset(highEntropy+2, 0, sizeof(highEntropy)); // sets the sequence of bytes to 0 after the packet ID
-		if(sendto(sock_desc, highEntropy, sizeof(highEntropy), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+	for(unsigned short int id = 0; id < numPackets; id++)
+	{
+		unsigned char idRight = id & 0xFF;	// Bit shift the last byte of the ID
+		unsigned char idLeft = id >> 8;		// Bit shift the first byte of the ID
+				
+		// Stores the left in right bytes in the first two indicies of the packet
+		highEntropyPacket[0] = idLeft;	
+		highEntropyPacket[1] = idRight;
+		
+		strncpy(&highEntropyPacket[2], highEntropyData, udpPayload);	
+		if(sendto(sock_desc, highEntropyPacket, sizeof(highEntropyPacket), 0, (struct sockaddr *)&server_addr,
+		(socklen_t)sizeof(server_addr)) < 0)
+		{
 			perror("First UDP packet send error\n");
 			exit(EXIT_FAILURE);
 		}
 				
-		if(id == 0){
+		if(id == 0)
+		{
 			printf("[+]Successfully sent the first packet\n");
 		}
-		if(id == (numPackets - 1)){
+		if(id == (numPackets - 1))
+		{
 			printf("[+]Successfully sent the last packet\n");
 		}
 	}
 
-	if(sendto(sock_desc, (const char*)done, strlen(done), 0, (struct sockaddr *)&server_addr, (socklen_t)sizeof(server_addr)) < 0){
+	if(sendto(sock_desc, (const char*)done, strlen(done), 0, (struct sockaddr *)&server_addr,
+	(socklen_t)sizeof(server_addr)) < 0)
+	{
 			perror("First UDP packet send error\n");
 			exit(EXIT_FAILURE);
 	}
@@ -163,10 +181,11 @@ int numPackets, int interMeasureTime) {
 }
 
 
-void postProbing(char *serverIP, int tcpPort){
-
+void postProbing(char *serverIP, int tcpPort)
+{
 	int sock_desc = socket(AF_INET, SOCK_STREAM, 0);
-	if(sock_desc < 0){
+	if(sock_desc < 0)
+	{
 		printf("Unable to create socket\n");
 		exit(EXIT_FAILURE);
 	}
@@ -175,7 +194,8 @@ void postProbing(char *serverIP, int tcpPort){
 
 	int val = 1;
 	int setsock = setsockopt(sock_desc, SOL_SOCKET, SO_REUSEADDR, (void*)&val, sizeof(val));
-	if(setsock < 0){
+	if(setsock < 0)
+	{
 		perror("setsockopt error\n");
 		exit(EXIT_FAILURE);
 	}
@@ -187,7 +207,8 @@ void postProbing(char *serverIP, int tcpPort){
 	server_addr.sin_port = htons(tcpPort);
 	server_addr.sin_addr.s_addr = inet_addr(serverIP);
 
-	if(connect(sock_desc, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0){
+	if(connect(sock_desc, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0)
+	{
 		printf("Client unable to connect to server\n");
 		exit(1);
 	}
@@ -195,24 +216,26 @@ void postProbing(char *serverIP, int tcpPort){
 
 	char buffer[1024];
     /* Sending the contents of the JSON file to the server */
-	if(recv(sock_desc, buffer, sizeof(buffer), 0) < 0){
+	if(recv(sock_desc, buffer, sizeof(buffer), 0) < 0)
+	{
      	perror("File not sent\n");
      	exit(EXIT_FAILURE);
      }
 
     printf("[+]Server Findings: \n");
     printf("%s", buffer); 	
-    
+
 	
 	printf("[+]Closing the connection\n");
 	close(sock_desc);
 }
 
 
-int main(int argc, char* argv[]){
-
-	// Checks if there is a config file attached 
-	if(argc != 2){
+int main(int argc, char* argv[])
+{
+	// Checks if there is a config file attached
+	if(argc != 2)
+	{
 		perror("Configuration file missing\n");
 		exit(EXIT_FAILURE);
 	}
@@ -222,7 +245,8 @@ int main(int argc, char* argv[]){
     int sourcePortUDP, destPortUDP, destPortTCPHead, destPortTCPTail,
     TCPPort, UDPPayload, measureTime, numUDPPack, ttlUdp;
 
-    const struct json_attr_t json_attrs[] = {
+    const struct json_attr_t json_attrs[] =
+    {
         {"servIP", t_string, .addr.string = servIP,
 			.len = sizeof(servIP)},
         {"sourcePortUDP", t_integer, .addr.integer = &sourcePortUDP},
@@ -236,43 +260,48 @@ int main(int argc, char* argv[]){
         {"ttlUdp", t_integer, .addr.integer = &ttlUdp},
         {NULL},
     };
-    
 
 	/*reading from file to array with buffer*/
-	char buffer[SIZE];
+	char buffer[1024];
 	int length;
 	FILE *fp;
 	char *filename = argv[1];
 	fp = fopen(filename, "r");
 
-	if(fp != NULL){
-		fseek(fp, 0, SEEK_END);
-		length = ftell(fp);
-		fseek(fp, 0, SEEK_SET);
-		fread(buffer, 1, length, fp);
+	if(fp != NULL)
+	{
+		fseek(fp, 0, SEEK_END);	// Goes to the last position of the file
+		length = ftell(fp);	// Gets the total number of bytes in file
+		fseek(fp, 0, SEEK_SET);	//	Goes back to the beginning of the file
+		fread(buffer, 1, length, fp);	
 		fclose(fp);
 	}
 
-    if(json_read_object(buffer, json_attrs, NULL) < 0){
+    if(json_read_object(buffer, json_attrs, NULL) < 0)
+    {
 		perror("Error getting from JSON file.\n");
 		exit(EXIT_FAILURE);
     }
 
 	/* Setting defaults to values if not present or "0" in JSON file */
-    if(UDPPayload <= 0 || UDPPayload > 65527){
+    if(UDPPayload <= 0 || UDPPayload > 65527)
+    {
     	UDPPayload = 1000;
     }
-    if(measureTime <= 0){
+    if(measureTime <= 0)
+    {
     	measureTime = 5;
     }
-    if(numUDPPack <= 0){
+    if(numUDPPack <= 0)
+    {
     	numUDPPack = 6000;
     }
-    if(ttlUdp <= 0){
+    if(ttlUdp <= 0)
+    {
     	ttlUdp = 255;
     }
 	
- 	/* Creates TCP connection with server that takes in the server IP address 
+ 	/* Creates TCP connection with server that takes in the server IP address
  	and TCP Port number. Sends the contexts in the config file to the server.*/
 	printf("Pre-probing Phase:\n");
 	tcpConnection(servIP, TCPPort, buffer);
@@ -284,7 +313,6 @@ int main(int argc, char* argv[]){
 
 	printf("Post-Probing Phase: \n");
 	postProbing(servIP, TCPPort);
-
+	
 	return 0;
 }
-
