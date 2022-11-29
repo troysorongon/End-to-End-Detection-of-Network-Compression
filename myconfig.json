@@ -1,2 +1,2 @@
-{"servIP": "192.168.86.248", "sourcePortUDP": 8765, "destPortUDP": 9876, "destPortTCPHead": 9876, "destPortTCPTail": 8765,
+{"servIP": "192.168.86.248", "sourcePortUDP": 8765, "destPortUDP": 9876, "destPortTCPHead": 7005, "destPortTCPTail": 7006,
 "TCPPort": 9876, "UDPPayload": 1024, "measureTime": 5, "numUDPPack":6000, "ttlUdp": 255}
