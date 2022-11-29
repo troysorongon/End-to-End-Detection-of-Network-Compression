@@ -343,36 +343,40 @@ int main(int argc, char* argv[])
 	{
     	printf("error: could not send TCP Syn Head on raw socket\n");
 	}
-	printf("sent TCP Syn to port: %d\n", destPortTCPHead);
+	printf("sent TCP HEAD Syn to port: %d\n", destPortTCPHead);
 
 	lowPacketTrain(udpAddr, UDPSock);
 
+	/*
 	memset(packet, 0, sizeof(packet));
 	if (sendto(tcpHeadSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpTail, sizeof(tcpTail)) < 0)
 	{
-    	printf("error: could not send TCP Syn Tail on raw socket\n");
+    	//printf("error: could not send TCP Syn Tail on raw socket\n");
 	}
 	printf("sent TCP Syn to port: %d\n", destPortTCPHead);
-
+	*/
 
 	sleep(measureTime);
+
+	highPacketTrain(udpAddr, UDPSock);
 
 	
 	if (sendto(tcpHeadSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpHead, sizeof(tcpHead)) < 0)
 	{
-    	printf("error: could not send TCP Syn Head on raw socket\n");
+    	printf("error: could not send TCP Syn Tail on raw socket\n");
 	}
-	printf("sent TCP Syn to port: %d\n", destPortTCPHead);
+	printf("sent TCP Syn TAIL to port: %d\n", destPortTCPHead);
+	
+	//highPacketTrain(udpAddr, UDPSock);
 
-	highPacketTrain(udpAddr, UDPSock);
-
-	memset(packet, 0, sizeof(packet));
+	//memset(packet, 0, sizeof(packet));
+	/*
 	if (sendto(tcpHeadSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpTail, sizeof(tcpTail)) < 0)
 	{
     	printf("error: could not send TCP Syn Tail on raw socket\n");
 	}
-	printf("sent TCP Syn to port: %d\n", destPortTCPHead);
-
+	printf("sent TCP TAIL Syn to port: %d\n", destPortTCPHead);
+	*/
 	double timeDifference = times[1] - times[0];
 
 	printf("Low Entropy Packet Train Time: %fms\n", *times+0);
