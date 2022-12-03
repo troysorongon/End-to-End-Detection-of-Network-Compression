@@ -13,14 +13,14 @@
 #include <time.h>
 #include "mjson.h"
 
-
+// Global variables that hold the values for the keys in JSON file
 char servIP[40];
 int sourcePortUDP, destPortUDP, destPortTCPHead, destPortTCPTail,
     tcpPort, UDPPayload, measureTime, numUDPPack, ttlUdp;
 static double times[2];
 
 
-/* Calculates Header Checksum */
+// Calculates Header Checksum
 unsigned short checksum(unsigned short* pts, int n)
 {
 	unsigned long sum;
@@ -33,47 +33,45 @@ unsigned short checksum(unsigned short* pts, int n)
 	return (unsigned short)(~sum);
 }
 
-
-/* Void function that sets the fields for the IP Header */
+// Sets the fields for the IP Header
 void ipHeaderAttrs(struct iphdr* ipHeader, struct sockaddr_in addrSynHead, char* packet)
 {
 	ipHeader->ihl = 5;
 	ipHeader->version = 4;
 	ipHeader->tos = 0;
-	ipHeader->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr);
+	ipHeader->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr); // no payload
 	ipHeader->id = htonl(54321);
 	ipHeader->frag_off = 0;
 	ipHeader->ttl = 255;
 	ipHeader->protocol = IPPROTO_TCP;
 	ipHeader->check = 0; /* checksum is set to 0 intially before computing */
-	ipHeader->saddr = inet_addr("127.0.0.1"); // Or set to client IP?
+	ipHeader->saddr = inet_addr("127.0.0.1");
 	ipHeader->daddr = addrSynHead.sin_addr.s_addr;
 
 	ipHeader->check = checksum((unsigned short *) packet, ipHeader->tot_len);
 }
 
-
+// Sets the fields for the TCP Header
 void tcpHeaderAttrs(struct tcphdr* tcpHeader, int destPort)
 {
 	tcpHeader->source = htons(1234);
 	tcpHeader->dest = htons(destPort);
-	tcpHeader->seq = random();
-	tcpHeader->ack_seq = 0;
-	tcpHeader->th_flags = TH_SYN;
-	tcpHeader->window = htons(65535);
-	tcpHeader->check = 0;
+	tcpHeader->seq = random();	// sequence in random in SYN packet
+	tcpHeader->ack_seq = 0;	// ack sequence is in first packet
+	tcpHeader->th_flags = TH_SYN;	// for initial connection request
+	tcpHeader->window = htons(65535);	// maximum window size
+	tcpHeader->check = 0;	// Kernel's IP stack fills in the correct checksum during transmission
 	tcpHeader->urg = 0;
 	tcpHeader->urg_ptr = 0;
 	tcpHeader->th_off = 0;
 }
 
-
+// Creates Low Entropy Packet and sends the Low Entropy packet train
 void lowPacketTrain(struct sockaddr_in server_addr, int sock)
 {
-
 	clock_t start, end;
 
-	/* ------- LOW ENTROPY PACKET TRAIN ------- */
+	// ------- LOW ENTROPY PACKET TRAIN -------
 	unsigned char lowEntropyData[UDPPayload]; // Creating low entropy with the size of payload
 	memset(lowEntropyData, 0, UDPPayload);
 	unsigned char lowEntropyPacket[UDPPayload + 2]; // +2 to add space for the packet ID in the beginning of the packet
@@ -117,16 +115,13 @@ void lowPacketTrain(struct sockaddr_in server_addr, int sock)
 		exit(EXIT_FAILURE);
 	}
 	printf("[+]Sent done message to Server\n");
-	
-	// Will wait the Inter Measure Time before sending the High Entropy Packet Train
-	sleep(measureTime);
 
 }
 
+// Creates High Entropy Packet and sends the High Entropy packet train
 void highPacketTrain(struct sockaddr_in server_addr, int sock)
 {
-	/* ------- HIGH ENTROPY PACKET CREATION AND SEND ------- */
-
+	// ------- HIGH ENTROPY PACKET CREATION AND SEND -------
 	clock_t start, end;
 	char* done = "done";
 	unsigned char highEntropyData[UDPPayload];
@@ -182,7 +177,6 @@ void highPacketTrain(struct sockaddr_in server_addr, int sock)
 	close(sock);
 	printf("[+]Successfully sent both packet trains\n");
 }
-
 
 int main(int argc, char* argv[])
 {
@@ -255,8 +249,7 @@ int main(int argc, char* argv[])
 		ttlUdp = 255;	
 	}
 
-	
-	/* ------- CREATING TCPHEAD, TCPTAIL, & UDP SOCKETS ------- */
+	// ------- CREATING TCPHEAD, TCPTAIL, & UDP SOCKETS -------
 
 	// TCP HEAD
 	int tcpHeadSock = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
@@ -276,7 +269,6 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 	
-
 	// TCP TAIL
 	int tcpTailSock = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
 	if(tcpTailSock < 0)
@@ -295,7 +287,6 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 	
-
 	// UDP
 	int UDPSock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if(UDPSock < 0)
@@ -324,7 +315,7 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	char packet[1000];
+	char packet[1000];	
 	memset(packet, 0, sizeof(packet));	//zero out the packet buffer
 
 	//IP header
@@ -333,54 +324,35 @@ int main(int argc, char* argv[])
 	//TCP Header
 	struct tcphdr* tcpHeader = (struct tcphdr*) packet + sizeof(struct iphdr);
 
-	 /* Sending TCP HEAD SYN Packet & LOW ENTROPY PACKET TRAIN */
+	 // Sending TCP HEAD SYN Packet & LOW ENTROPY PACKET TRAIN
 	ipHeaderAttrs(ipHeader, tcpHead, packet);
 	tcpHeaderAttrs(tcpHeader, destPortTCPHead);
 
 
-	/* ------- SENDING TCP HEAD, PACKET TRAIN, THEN TCP TAIL ------- */
+	// ------- SENDING TCP HEAD, PACKET TRAIN, THEN TCP TAIL -------
 	if (sendto(tcpHeadSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpHead, sizeof(tcpHead)) < 0)
 	{
     	printf("error: could not send TCP Syn Head on raw socket\n");
 	}
-	printf("sent TCP HEAD Syn to port: %d\n", destPortTCPHead);
+	printf("sent TCP Syn to port: %d\n", destPortTCPHead);
 
 	lowPacketTrain(udpAddr, UDPSock);
-
-	/*
-	memset(packet, 0, sizeof(packet));
-	if (sendto(tcpHeadSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpTail, sizeof(tcpTail)) < 0)
-	{
-    	//printf("error: could not send TCP Syn Tail on raw socket\n");
-	}
-	printf("sent TCP Syn to port: %d\n", destPortTCPHead);
-	*/
 
 	sleep(measureTime);
 
 	highPacketTrain(udpAddr, UDPSock);
-
 	
-	if (sendto(tcpHeadSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpHead, sizeof(tcpHead)) < 0)
+	if (sendto(tcpTailSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpTail, sizeof(tcpHead)) < 0)
 	{
     	printf("error: could not send TCP Syn Tail on raw socket\n");
 	}
-	printf("sent TCP Syn TAIL to port: %d\n", destPortTCPHead);
-	
-	//highPacketTrain(udpAddr, UDPSock);
+	printf("sent TCP Syn to port: %d\n", destPortTCPTail);	
 
-	//memset(packet, 0, sizeof(packet));
-	/*
-	if (sendto(tcpHeadSock, (char *) packet, ipHeader->tot_len, 0, (struct sockaddr *)&tcpTail, sizeof(tcpTail)) < 0)
-	{
-    	printf("error: could not send TCP Syn Tail on raw socket\n");
-	}
-	printf("sent TCP TAIL Syn to port: %d\n", destPortTCPHead);
-	*/
+	// Calculates the difference in time between compression time of LE and HE trains
 	double timeDifference = times[1] - times[0];
 
-	printf("Low Entropy Packet Train Time: %fms\n", *times+0);
-	printf("High Entropy Packet Train Time: %fms\n", *times+1);
+	printf("Low Entropy Packet Train Time: %fms\n", times[0]);
+	printf("High Entropy Packet Train Time: %fms\n", times[1]);
 	printf("Time DIfference: %fms\n", timeDifference);
 
 	close(tcpHeadSock);
